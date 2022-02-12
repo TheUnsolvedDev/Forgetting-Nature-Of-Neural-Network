@@ -60,30 +60,24 @@ def test(weights, data, labels):
     print('Test accuracy:', score[1])
 
 
-def fisher_matrix(model, images, labels):
-    inputs = images
-    y = labels
-    weights = model.trainable_weights
-    variance = [tf.zeros_like(tensor) for tensor in weights]
-    batch_size = 50
-    parts = 0.01
+def fisher_matrix(star_model, images, labels):
+    star_weights = star_model.trainable_weights
+    variance = [tf.zeros_like(tensor) for tensor in star_weights]
 
-    indices = int(parts*np.floor(len(images)/batch_size))
-    for i in tqdm(range(indices)):
-        data, label = images[i*batch_size:(
-            i+1)*batch_size], labels[i*batch_size: (i+1)*batch_size]
-        with tf.GradientTape() as tape:
-            log_likelihood = (tf.nn.log_softmax(model(data)))
+    data, label = images, labels
 
-        gradients = tape.gradient(log_likelihood, weights)
-        variance = [var + tf.reduce_mean(grad ** 2, axis=0)/batch_size
-                    for var, grad in zip(variance, gradients)]
+    with tf.GradientTape() as tape:
+        log_likelihood = (tf.nn.log_softmax(star_model(data)))
+
+    gradients = tape.gradient(log_likelihood, star_weights)
+    variance = [var + tf.reduce_sum(grad ** 2, axis=0)
+                for var, grad in zip(variance, gradients)]
 
     fisher_diagonal = variance
     return fisher_diagonal
 
 
-def train_ewc(I, train_data, train_labels, validation_data, validation_labels, batch_size=500, epochs=100):
+def train_ewc(train_data, train_labels, validation_data, validation_labels, batch_size=500, epochs=50000, I=None):
     accuracy = metrics[0]
     loss = metrics[1]
     model = lenet5()
@@ -98,11 +92,16 @@ def train_ewc(I, train_data, train_labels, validation_data, validation_labels, b
         for i in range(indices):
             data, labels = train_data[i*batch_size:(
                 i+1)*batch_size], train_labels[i*batch_size: (i+1)*batch_size]
+            # fisher_data, fisher_labels = validation_data[i*batch_size:(
+            #     i+1)*batch_size], validation_labels[i*batch_size:(i+1)*(batch_size)]
+
+            if not I:
+                I = fisher_matrix(star_model, data, labels)
 
             with tf.GradientTape() as tape:
                 pred = model(data)
-                total_loss = loss(labels, pred) + compute_elastic_penalty(I,
-                                                                          model.trainable_variables, star_model.trainable_variables)
+                total_loss = model.loss(labels, pred) + compute_elastic_penalty(
+                    I, model.trainable_variables, star_model.trainable_variables)
             # print(total_loss,1000)
             grads = tape.gradient(total_loss, model.trainable_variables)
             model.optimizer.apply_gradients(
@@ -110,7 +109,7 @@ def train_ewc(I, train_data, train_labels, validation_data, validation_labels, b
 
             accuracy.update_state(labels, pred)
             loss.update_state(labels, pred)
-            print("\rEpoch: {}, Batch: {}, Loss: {:.3f}, Accuracy: {:.3f}".format(
+            print("\rEpoch: {}, Batch: {}, Loss: {:.3f}, Accuracy on task B: {:.3f}".format(
                 epoch+1, i+1, loss.result().numpy(), accuracy.result().numpy()), flush=True, end='')
 
         print("")
@@ -125,26 +124,26 @@ def train_ewc(I, train_data, train_labels, validation_data, validation_labels, b
 
             accuracy.update_state(labels, pred)
             loss.update_state(labels, pred)
-            print("\rEpoch: {}, Batch: {}, Loss: {:.3f}, Accuracy: {:.3f}".format(
+            print("\rEpoch: {}, Batch: {}, Loss: {:.3f}, Accuracy on task A: {:.3f}".format(
                 epoch+1, i+1, loss.result().numpy(), accuracy.result().numpy()), flush=True, end='')
         print("")
-        
-    model.evaluate(train_data,train_labels)
-    model.evaluate(validation_data,validation_labels)
-    model.save_weights('modelB.h5')
+        model.save_weights('modelB.h5')
 
 
 if __name__ == '__main__':
     obj = Dataset()
     A1, A2, A3, A4 = obj.task_A()
-    train(A1, A2, A3, A4)
-    test('modelA*.h5', A3, A4)
+    # train(A1, A2, A3, A4)
+    # test('modelA*.h5', A3, A4)
 
-    model = lenet5()
-    model.load_weights('modelA*.h5')
-    I = (fisher_matrix(model, A1, A2))
-    print(I)
+    choices = np.random.choice(a=range(30000), size=5000)
+    fishdata = A1[choices]
+    fishlabels = A2[choices]
+
+    star = lenet5()
+    star.load_weights('modelA*.h5')
+    I = fisher_matrix(star, fishdata, fishlabels)
 
     B1, B2, B3, B4 = obj.task_B()
-    train_ewc(I, B1, B2, A1, A2)
-    test('modelB.h5',  A3, A4)
+    train_ewc(B1, B2, A1, A2)
+    test('modelB.h5',  B3, B4)

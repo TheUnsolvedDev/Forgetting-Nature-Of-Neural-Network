@@ -9,19 +9,19 @@ metrics = [
 
 def lenet5():
     input = tf.keras.Input(shape=(28, 28, 1))
-    # conv1 = tf.keras.layers.Conv2D(filters=32, kernel_size=5,
-    #                                activation='relu', padding='same')(input)
-    # maxpool2 = tf.keras.layers.MaxPool2D(
-    #     pool_size=(2, 2), strides=None, padding='valid')(conv1)
-    # droupout1 = tf.keras.layers.Dropout(0.25)(maxpool2)
+    conv1 = tf.keras.layers.Conv2D(filters=32, kernel_size=5,
+                                   activation='relu', padding='same')(input)
+    maxpool2 = tf.keras.layers.MaxPool2D(
+        pool_size=(2, 2), strides=None, padding='valid')(conv1)
+    droupout1 = tf.keras.layers.Dropout(0.25)(maxpool2)
 
-    # conv3 = tf.keras.layers.Conv2D(filters=64, kernel_size=5,
-    #                                activation='relu', padding='valid')(maxpool2)
-    # maxpool3 = tf.keras.layers.MaxPool2D(
-    #     pool_size=(2, 2), strides=None, padding='valid')(conv3)
-    # droupout2 = tf.keras.layers.Dropout(0.25)(maxpool3)
+    conv3 = tf.keras.layers.Conv2D(filters=64, kernel_size=5,
+                                   activation='relu', padding='valid')(maxpool2)
+    maxpool3 = tf.keras.layers.MaxPool2D(
+        pool_size=(2, 2), strides=None, padding='valid')(conv3)
+    dropout2 = tf.keras.layers.Dropout(0.25)(maxpool3)
 
-    flat = tf.keras.layers.Flatten()(input)
+    flat = tf.keras.layers.Flatten()(dropout2)
     fc1 = tf.keras.layers.Dense(units=240, activation='relu')(flat)
     fc2 = tf.keras.layers.Dense(units=128, activation='relu')(fc1)
     final = tf.keras.layers.Dense(units=10)(fc2)
