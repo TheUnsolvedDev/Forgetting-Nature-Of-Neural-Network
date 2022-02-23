@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tqdm import tqdm
+from copy import deepcopy
 
 from dataset import *
 from model import *
@@ -32,26 +33,47 @@ class CustomCallback(tf.keras.callbacks.Callback):
         plt.show()
 
 
+class CustomFisherCallback(tf.keras.callbacks.Callback):
+    def __init__(self) -> None:
+        super(CustomCallback).__init__()
+        self.alpha = 0.9
+        self.I = I
+
+    def on_train_batch_end(self, batch, logs=None):
+        model = self.model
+
+        with tf.GradientTape as tape:
+            probs = model.outputs
+            log_likelyhood = tf.nn.log_softmax(probs)
+        grads = tape.gradient(log_likelyhood, model.trainable_weights)
+
+        for ind in range(len(I)):
+            self.I[n] = (self.alpha*tf.square(grads) +
+                         (1-self.alpha)*self.I[n])
+
+    def get_I(self):
+        return self.I
+
+
 callbacks = [
     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7),
     tf.keras.callbacks.ModelCheckpoint(
         filepath='modelA*.h5', save_weights_only=True, monitor='val_loss', save_best_only=True),
-    tf.keras.callbacks.TensorBoard(
-        log_dir='./logs', histogram_freq=1, write_graph=True),
+    # tf.keras.callbacks.TensorBoard(
+    #     log_dir='./logs', histogram_freq=1, write_graph=True),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.1, patience=4, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0),
-    CustomCallback('A','B')
+    CustomCallback('A', 'B')
 ]
 
 ewc_callbacks = [
     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7),
     tf.keras.callbacks.ModelCheckpoint(
         filepath='modelB.h5', save_weights_only=True, monitor='val_loss', save_best_only=True),
-    tf.keras.callbacks.TensorBoard(
-        log_dir='./logs', histogram_freq=1, write_graph=True),
+    # tf.keras.callbacks.TensorBoard(
+    #     log_dir='./logs', histogram_freq=1, write_graph=True),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.1, patience=4, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0),
-    CustomCallback('B', 'A')
 ]
 
 
@@ -67,7 +89,7 @@ def plot_result(history, item):
 
 
 def train(train_data, train_labels, validation_data, validation_labels, epochs=15, model=None):
-    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+    loss = tf.keras.losses.SparseCategoricalCrossentropy()
     model.compile(loss=loss, optimizer='Adam', metrics=metrics)
     history = model.fit(train_data, train_labels, validation_data=(
         validation_data, validation_labels), epochs=epochs, callbacks=callbacks)
@@ -77,12 +99,14 @@ def train(train_data, train_labels, validation_data, validation_labels, epochs=1
 
 
 @ tf.function
-def ewc_loss_fn(y_true, y_pred, lam=10):
-    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    total_loss = loss(y_true, y_pred)
-    for i in range(len(theta)):
-        diff = tf.reduce_sum(I[i]*tf.square(theta[i] - theta_star[i]))
-        total_loss += (lam/2)*diff
+def ewc_loss_fn(y_true, y_pred, lam=25):
+    total_loss = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
+    for j in range(len(theta_star)):
+        for i in range(len(theta_star[j])):
+            diff = tf.reduce_sum(I[j][i]*(tf.square(theta[i]) - 2*tf.multiply(
+                theta_star[j][i], theta[i]) + tf.square(theta_star[j][i])))
+            total_loss += (lam/2)*diff
+
     return total_loss
 
 
@@ -98,20 +122,32 @@ if __name__ == '__main__':
     A1, A2 = obj.task_A()
     B1, B2 = obj.task_B()
     C1, C2 = obj.task_C()
+    D1, D2 = obj.task_D()
 
     star = lenet5()
     star = train(A1, A2, B1, B2, model=star)
 
-    theta, theta_star = star.weights, star.get_weights()
-    I = ewc_fisher_matrix([A1], [A2], star)
+    theta = star.weights
+    theta_star = [[tf.constant(i) for i in star.get_weights()]]
+    I = [ewc_fisher_matrix([A1], [A2], star)]
+    star = train_ewc(B1, B2, A1, A2, model=star,
+                     callbacks=ewc_callbacks + [CustomCallback('B', 'A')])
 
-    star = train_ewc(B1, B2, A1, A2, model=star,callbacks = ewc_callbacks)
+    theta = star.weights
+    theta_star = [[tf.constant(i) for i in star.get_weights()]] + theta_star
+    I = [ewc_fisher_matrix([B1], [B2], star)] + I
 
-    theta, theta_star = star.weights, star.get_weights()
-    I = ewc_fisher_matrix([A1,B1], [A2,B2], star)
+    star = train_ewc(C1, C2, B1, B2, model=star,
+                     callbacks=ewc_callbacks + [CustomCallback('C', 'B')])
 
-    star = train_ewc(C1, C2, B1, B2, model=star,callbacks = ewc_callbacks)
+    theta = star.weights
+    theta_star = [[tf.constant(i) for i in star.get_weights()]] + theta_star
+    I = [ewc_fisher_matrix([C1], [C2], star)] + I
 
-    star.evaluate(A1,A2)
-    star.evaluate(B1,B2)
-    star.evaluate(C1,C2)
+    star = train_ewc(D1, D2, C1, C2, model=star,
+                     callbacks=ewc_callbacks + [CustomCallback('D', 'C')])
+
+    star.evaluate(A1, A2)
+    star.evaluate(B1, B2)
+    star.evaluate(C1, C2)
+    star.evaluate(D1, D2)
