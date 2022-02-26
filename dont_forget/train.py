@@ -98,7 +98,7 @@ def train(train_data, train_labels, validation_data, validation_labels, epochs=1
     return model
 
 
-@ tf.function
+# @ tf.function
 def ewc_loss_fn(y_true, y_pred, lam=25):
     total_loss = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
     for j in range(len(theta_star)):
