@@ -59,8 +59,8 @@ callbacks = [
     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7),
     tf.keras.callbacks.ModelCheckpoint(
         filepath='modelA*.h5', save_weights_only=True, monitor='val_loss', save_best_only=True),
-    # tf.keras.callbacks.TensorBoard(
-    #     log_dir='./logs', histogram_freq=1, write_graph=True),
+    tf.keras.callbacks.TensorBoard(
+        log_dir='./logs', histogram_freq=1, write_graph=True),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.1, patience=4, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0),
     CustomCallback('A', 'B')
@@ -70,8 +70,8 @@ ewc_callbacks = [
     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7),
     tf.keras.callbacks.ModelCheckpoint(
         filepath='modelB.h5', save_weights_only=True, monitor='val_loss', save_best_only=True),
-    # tf.keras.callbacks.TensorBoard(
-    #     log_dir='./logs', histogram_freq=1, write_graph=True),
+    tf.keras.callbacks.TensorBoard(
+        log_dir='./logs', histogram_freq=1, write_graph=True),
     tf.keras.callbacks.ReduceLROnPlateau(
         monitor='val_loss', factor=0.1, patience=4, verbose=1, mode='auto', min_delta=0.0001, cooldown=0, min_lr=0),
 ]
@@ -100,7 +100,8 @@ def train(train_data, train_labels, validation_data, validation_labels, epochs=1
 
 # @ tf.function
 def ewc_loss_fn(y_true, y_pred, lam=25):
-    total_loss = tf.keras.losses.sparse_categorical_crossentropy(y_true, y_pred)
+    total_loss = tf.keras.losses.sparse_categorical_crossentropy(
+        y_true, y_pred)
     for j in range(len(theta_star)):
         for i in range(len(theta_star[j])):
             diff = tf.reduce_sum(I[j][i]*(tf.square(theta[i]) - 2*tf.multiply(
@@ -147,7 +148,12 @@ if __name__ == '__main__':
     star = train_ewc(D1, D2, C1, C2, model=star,
                      callbacks=ewc_callbacks + [CustomCallback('D', 'C')])
 
-    star.evaluate(A1, A2)
-    star.evaluate(B1, B2)
-    star.evaluate(C1, C2)
-    star.evaluate(D1, D2)
+    accA = star.evaluate(A1, A2)[1]
+    accB = star.evaluate(B1, B2)[1]
+    accC = star.evaluate(C1, C2)[1]
+    accD = star.evaluate(D1, D2)[1]
+    
+    plt.plot([accA, accB, accC, accD])
+    plt.xlabel('Task Number')
+    plt.ylabel('Accuracy')
+    plt.show()
