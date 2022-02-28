@@ -10,14 +10,12 @@ metrics = [
 
 def lenet5():
     # input = tf.keras.Input(shape=(28, 28, 1))
-    # conv1 = tf.keras.layers.Conv2D(filters=32, kernel_size=5,
-    #                                activation='tanh', padding='same')(input)
+    # conv1 = tf.keras.layers.Conv2D(filters=32, kernel_size=5,activation = 'tanh', padding='same')(input)
     # maxpool2 = tf.keras.layers.MaxPool2D(
     #     pool_size=(2, 2), strides=None, padding='valid')(conv1)
     # droupout1 = tf.keras.layers.Dropout(0.25)(maxpool2)
 
-    # conv3 = tf.keras.layers.Conv2D(filters=64, kernel_size=5,
-    #                                activation='tanh', padding='valid')(maxpool2)
+    # conv3 = tf.keras.layers.Conv2D(filters=64, kernel_size=5,activation = 'tanh', padding='valid')(maxpool2)
     # maxpool3 = tf.keras.layers.MaxPool2D(
     #     pool_size=(2, 2), strides=None, padding='valid')(conv3)
     # dropout2 = tf.keras.layers.Dropout(0.25)(maxpool3)
@@ -33,6 +31,7 @@ def lenet5():
 
     inputs = tf.keras.layers.Input(shape=(28, 28))
     flat = tf.keras.layers.Flatten()(inputs)
+    flat = tf.keras.layers.Dense(240, activation='tanh')(flat)
     flat = tf.keras.layers.Dense(240, activation='tanh')(flat)
     output = tf.keras.layers.Dense(10, activation='softmax')(flat)
     model = tf.keras.Model(inputs=inputs, outputs=output)
@@ -57,10 +56,6 @@ def ewc_fisher_matrix(datas, labels, model, samples=400):
     fisher = [fish/((samples)*length) for fish in fisher]
     return fisher
 
-def update_fisher(I,phi = 0.95,eps = 1e-20):
-    for ind in range(len(I)):
-        I[n] += [phi*((I[n] - I[n].min())/(I[n].max() - I[n].min()) + eps) + I[n]]
-    return I
 
 
 if __name__ == '__main__':
